@@ -20,9 +20,7 @@ export class ExampleApp extends gfx.GfxApp
         // initialize the base class gfx.GfxApp
         super();
 
-        this.bunnyMesh = gfx.MeshLoader.loadOBJ('./assets/bunny.obj', (mesh: gfx.Mesh3) => {
-            this.bunnyMesh.computeBounds(null); 
-        });
+        this.bunnyMesh = gfx.MeshLoader.loadOBJ('./assets/bunny.obj');
         this.mousePrevPos = new gfx.Vector2();
         this.panning = false;
         this.rotating = false;
@@ -50,8 +48,7 @@ export class ExampleApp extends gfx.GfxApp
 
         this.scene.add(this.bunnyMesh);
         this.bunnyMesh.position = new gfx.Vector3(0.5, 0, -1);
-        this.bunnyMesh.scale = new gfx.Vector3(0.5, 0.5, 0.5);
-        
+        this.bunnyMesh.scale = new gfx.Vector3(1.5, 1.5, 1.5);
     }
 
 
@@ -135,7 +132,7 @@ export class ExampleApp extends gfx.GfxApp
                 const angle = gfx.Vector3.angleBetween(vPrev, vCur);
                 
                 if (Number.isFinite(angle) && angle < Math.PI/4) {
-                    // with matrices: 
+                    // with matrices:
                     const M = gfx.Matrix4.makeIdentity();
                     M.multiply(gfx.Matrix4.makeTranslation(gfx.Vector3.multiplyScalar(this.bunnyMesh.position, 1)));
                     M.multiply(gfx.Matrix4.makeRotation(gfx.Quaternion.makeAxisAngle(axis, angle)));
