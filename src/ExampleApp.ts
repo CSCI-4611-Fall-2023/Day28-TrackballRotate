@@ -20,9 +20,7 @@ export class ExampleApp extends gfx.GfxApp
         // initialize the base class gfx.GfxApp
         super();
 
-        this.bunnyMesh = gfx.MeshLoader.loadOBJ('./assets/bunny.obj', (mesh: gfx.Mesh3) => {
-            this.bunnyMesh.computeBounds(null); 
-        });
+        this.bunnyMesh = gfx.MeshLoader.loadOBJ('./assets/bunny.obj');
         this.mousePrevPos = new gfx.Vector2();
         this.panning = false;
         this.rotating = false;
@@ -39,8 +37,7 @@ export class ExampleApp extends gfx.GfxApp
         this.camera.lookAt(new gfx.Vector3(0, 0, 0), gfx.Vector3.UP);
 
         this.renderer.background.set(0.7, 0.7, 0.7);
-        
-        // Create an ambient light
+
         const ambientLight = new gfx.AmbientLight(new gfx.Vector3(0.2, 0.2, 0.2));
         this.scene.add(ambientLight);
 
@@ -50,8 +47,7 @@ export class ExampleApp extends gfx.GfxApp
 
         this.scene.add(this.bunnyMesh);
         this.bunnyMesh.position = new gfx.Vector3(0.5, 0, -1);
-        this.bunnyMesh.scale = new gfx.Vector3(0.5, 0.5, 0.5);
-        
+        this.bunnyMesh.scale = new gfx.Vector3(1.5, 1.5, 1.5);        
     }
 
 
@@ -64,15 +60,17 @@ export class ExampleApp extends gfx.GfxApp
     {
         const mouseCurPos = this.getNormalizedDeviceCoordinates(event.x, event.y);
 
-        // to start the interaction, check with an intersection with the actual mesh
+        // to start the interaction, check with an intersection with the object's mesh
+        // (as opposed to its bounding sphere) because here we are checking to see if
+        // the user has clicked directly ON the object, not just near it.
         const ray = new gfx.Ray3();
         ray.setPickRay(mouseCurPos, this.camera);
         const hit = ray.intersectsMesh3(this.bunnyMesh);
         if (hit) {
             if (event.button == 0 && !this.rotating) {
                 this.panning = true;
-                const negativeLookVec = this.camera.localToWorldMatrix.transformVector(gfx.Vector3.BACK);
-                this.panPlane = new gfx.Plane3(hit, negativeLookVec);
+                // TODO: Define the panPlane
+
             } else if (event.button == 2 && !this.panning) {
                 this.rotating = true;
             }
@@ -83,71 +81,32 @@ export class ExampleApp extends gfx.GfxApp
     onMouseMove(event: MouseEvent): void 
     {
         if (this.panning) {
+
+            // TODO: 
             // shoot a ray for the prev mouse onto the pan plane
-            const worldRayPrev = new gfx.Ray3();
-            worldRayPrev.setPickRay(this.mousePrevPos, this.camera);
-            const worldHitPrev = worldRayPrev.intersectsPlane(this.panPlane);
+            const mouseCurPos = this.getNormalizedDeviceCoordinates(event.x, event.y);
 
             // shoot a ray for the current mouse onto the pan plane
-            const mouseCurPos = this.getNormalizedDeviceCoordinates(event.x, event.y);
-            const worldRayCur = new gfx.Ray3();
-            worldRayCur.setPickRay(mouseCurPos, this.camera);
-            const worldHitCur = worldRayCur.intersectsPlane(this.panPlane);
-            
-            if (worldHitPrev && worldHitCur) {
-                const deltaPosWorld = gfx.Vector3.subtract(worldHitCur, worldHitPrev);
-                const worldToLocalMatrix = this.bunnyMesh.localToWorldMatrix.inverse();
-                const deltaPosLocal = worldToLocalMatrix.transformVector(deltaPosWorld);
-                
-                // with matrices:
-                const M = this.bunnyMesh.getLocalToParentMatrix();
-                M.multiply(gfx.Matrix4.makeTranslation(deltaPosLocal));
-                this.bunnyMesh.setLocalToParentMatrix(M, false);
+            // translate the bunny based upon the mouse movement projected onto the pan plane
 
-                // with separate TRS:
-                //const deltaPosLocalScaledAndRotated = deltaPosLocal.clone();
-                //deltaPosLocalScaledAndRotated.multiply(this.bunnyMesh.scale);
-                //deltaPosLocalScaledAndRotated.rotate(this.bunnyMesh.rotation);
-                //this.bunnyMesh.position.add(deltaPosLocalScaledAndRotated);
-            }
+
             this.mousePrevPos = mouseCurPos;
 
         } else if (this.rotating) {
                       
-            // shoot a ray for the prev mouse onto the bounding sphere of our object
-            const worldRayPrev = new gfx.Ray3();
-            worldRayPrev.setPickRay(this.mousePrevPos, this.camera);
-            const worldHitPrev = worldRayPrev.intersectsOrientedBoundingSphere(this.bunnyMesh);
-        
-            // shoot a ray for the current mouse onto the bounding sphere of our object  
+            // TODO: 
+            // shoot a ray for the prev mouse onto the bounding sphere of our object, note
+            // here we use the bounding sphere (as opposed to the object itself) so we get
+            // a smooth rotation.  also, this allows the user to be a little sloppy with the
+            // mouse movement--they can move off the bunny mesh while rotating and the rotation
+            // will still work as long as they are still on top of the bounding sphere.
             const mouseCurPos = this.getNormalizedDeviceCoordinates(event.x, event.y);
-            const worldRayCur = new gfx.Ray3();
-            worldRayCur.setPickRay(mouseCurPos, this.camera);
-            const worldHitCur = worldRayCur.intersectsOrientedBoundingSphere(this.bunnyMesh);
 
-            // rotate the object
-            if (worldHitPrev && worldHitCur) {
-                const vPrev = gfx.Vector3.subtract(worldHitPrev, this.bunnyMesh.worldBoundingSphere.center);
-                vPrev.normalize();
-                const vCur = gfx.Vector3.subtract(worldHitCur, this.bunnyMesh.worldBoundingSphere.center);
-                vCur.normalize();
-                const axis = gfx.Vector3.normalize(gfx.Vector3.cross(vPrev, vCur));
-                const angle = gfx.Vector3.angleBetween(vPrev, vCur);
-                
-                if (Number.isFinite(angle) && angle < Math.PI/4) {
-                    // with matrices: 
-                    const M = gfx.Matrix4.makeIdentity();
-                    M.multiply(gfx.Matrix4.makeTranslation(gfx.Vector3.multiplyScalar(this.bunnyMesh.position, 1)));
-                    M.multiply(gfx.Matrix4.makeRotation(gfx.Quaternion.makeAxisAngle(axis, angle)));
-                    M.multiply(gfx.Matrix4.makeTranslation(gfx.Vector3.multiplyScalar(this.bunnyMesh.position, -1)));
-                    M.multiply(this.bunnyMesh.getLocalToParentMatrix());
-                    this.bunnyMesh.setLocalToParentMatrix(M, false);
+            // shoot a ray for the current mouse onto the bounding sphere of our object  
+            // rotate the object based on the mouse's movement projected onto the bounding sphere
 
-                    // with separate TRS and quaternions
-                    //this.bunnyMesh.rotation.premultiply(gfx.Quaternion.makeAxisAngle(axis, angle));
-                }
-                this.mousePrevPos = mouseCurPos;
-            }    
+            this.mousePrevPos = mouseCurPos;
+            
         }
     }
 
