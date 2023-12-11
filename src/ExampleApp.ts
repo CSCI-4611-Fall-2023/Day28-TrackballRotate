@@ -69,7 +69,13 @@ export class ExampleApp extends gfx.GfxApp
         if (hit) {
             if (event.button == 0 && !this.rotating) {
                 this.panning = true;
-                // TODO: Define the panPlane
+                // TODO: Define the panPlane (filmplane translate)
+                // find the normal of the plane, which is camera's -look vector
+                // and convert it to world coordinates.
+                const n = this.camera.localToWorldMatrix.transformVector(
+                    new gfx.Vector3(0,0,-1)
+                );
+                this.panPlane = new gfx.Plane3(hit, n);
 
             } else if (event.button == 2 && !this.panning) {
                 this.rotating = true;
@@ -84,11 +90,27 @@ export class ExampleApp extends gfx.GfxApp
 
             // TODO: 
             // shoot a ray for the prev mouse onto the pan plane
-            const mouseCurPos = this.getNormalizedDeviceCoordinates(event.x, event.y);
+            const prevRay = new gfx.Ray3();
+            prevRay.setPickRay(this.mousePrevPos, this.camera);
+            const prevHit = prevRay.intersectsPlane(this.panPlane);
 
             // shoot a ray for the current mouse onto the pan plane
-            // translate the bunny based upon the mouse movement projected onto the pan plane
+            const mouseCurPos = this.getNormalizedDeviceCoordinates(event.x, event.y);
+            const curRay = new gfx.Ray3();
+            curRay.setPickRay(mouseCurPos, this.camera);
+            const curHit = curRay.intersectsPlane(this.panPlane);
 
+            // translate the bunny based upon the mouse movement projected onto the pan plane
+            if (prevHit && curHit) {
+                const deltaPosWorld = gfx.Vector3.subtract(curHit, prevHit);
+                const worldToLocalMatrix = this.bunnyMesh.localToWorldMatrix.inverse();
+                const deltaPosLocal = worldToLocalMatrix.transformVector(deltaPosWorld);
+
+                const M = this.bunnyMesh.getLocalToParentMatrix();
+                M.multiply(gfx.Matrix4.makeTranslation(deltaPosLocal));
+                this.bunnyMesh.setLocalToParentMatrix(M, false);
+
+            }
 
             this.mousePrevPos = mouseCurPos;
 
@@ -102,8 +124,38 @@ export class ExampleApp extends gfx.GfxApp
             // will still work as long as they are still on top of the bounding sphere.
             const mouseCurPos = this.getNormalizedDeviceCoordinates(event.x, event.y);
 
+            // prev
+            const worldRayPrev = new gfx.Ray3();
+            worldRayPrev.setPickRay(this.mousePrevPos, this.camera);
+            const worldHitPrev = worldRayPrev.intersectsOrientedBoundingSphere(this.bunnyMesh);
+
+            // cur
             // shoot a ray for the current mouse onto the bounding sphere of our object  
+            const worldRayCur = new gfx.Ray3();
+            worldRayCur.setPickRay(mouseCurPos, this.camera);
+            const worldHitCur = worldRayCur.intersectsOrientedBoundingSphere(this.bunnyMesh);
+
             // rotate the object based on the mouse's movement projected onto the bounding sphere
+            if (worldHitCur && worldHitPrev) {
+                const vPrev = gfx.Vector3.subtract(worldHitPrev, this.bunnyMesh.worldBoundingSphere.center);
+                vPrev.normalize();
+
+                const vCur = gfx.Vector3.subtract(worldHitCur, this.bunnyMesh.worldBoundingSphere.center);
+                vCur.normalize();
+
+                const axis = gfx.Vector3.normalize(gfx.Vector3.cross(vPrev, vCur));
+                const angle = gfx.Vector3.angleBetween(vPrev, vCur);
+
+                if (Number.isFinite(angle)) {
+                    const TBack = gfx.Matrix4.makeTranslation(this.bunnyMesh.position);
+                    const TtoOrigin = gfx.Matrix4.makeTranslation(gfx.Vector3.multiplyScalar(this.bunnyMesh.position, -1));
+                    const R = gfx.Matrix4.makeRotation(gfx.Quaternion.makeAxisAngle(axis, angle));
+                    const Mprev = this.bunnyMesh.getLocalToParentMatrix();
+
+                    const M = gfx.Matrix4.multiplyAll(TBack, R, TtoOrigin, Mprev);
+                    this.bunnyMesh.setLocalToParentMatrix(M, false);
+                }
+            }
 
             this.mousePrevPos = mouseCurPos;
             
